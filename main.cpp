@@ -52,7 +52,7 @@ int main(int argc, char **argv)
     exit(0);
   }
 
-  if ( strcmp(argv[1], "C") != 0 )
+  if ( strcmp(argv[1], "-C") != 0 )
     mode = 1;
 
   if ( mode == 0 )
@@ -70,6 +70,9 @@ int main(int argc, char **argv)
     {
       int key = hash_id(emp_buffer.id);
     }
+
+    int offset = write_cur_record(0);
+
     csv.close();
   }
 
@@ -141,7 +144,7 @@ void init_data ()
 
   struct Block new_block;
   new_block.capacity = 4;
-  new_block.used = 4;
+  new_block.used = 0;
   new_block.usage = 0;
   new_block.overflow = 0;
 
@@ -174,12 +177,12 @@ int write_cur_record ( int pos )
   struct stat results;
   if (stat("EmployeeData", &results) == 0)
     file_size = results.st_size;
-  else 
+  else
   {
     cout << "Can not read EmployeeData stat" << endl;
     exit(1);
   }
-  
+
   if ( pos % 4096 != 0 || pos > file_size - 4096 )
   {
     cout << "Offset is not at the entry of a block" << endl;
@@ -205,7 +208,7 @@ int write_cur_record ( int pos )
       break;
 
   usage |= 1u << i;                                 // updata usage
-  data.write((char *)&usage, sizeof(int));     
+  data.write((char *)&usage, sizeof(int));
 
   int write_pos = pos + metaSize + max_record_len * i;
   data.seekp(write_pos);                            // go to the next empty slot
