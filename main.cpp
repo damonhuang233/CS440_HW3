@@ -36,11 +36,11 @@ struct Record
 struct Records
 {
   int num;
-  struct Record  *Records[4];
+  struct Record  *Records[5];
   struct Records *overflow;
 };
 
-struct LHI
+struct BucketArray
 {
   int i;
   int N;
@@ -53,11 +53,11 @@ int         max_record_len  = sizeof(struct Emp);    // the max length of an rec
 
 struct Emp  emp_buffer;               // Emp buffer for reading file
 string      line_buffer;              // line buffer for reading a single line from file
-struct LHI  linear_hash;              // linear hash index
+struct BucketArray  bucket_array;              // linear hash index
 
 fstream     csv;                      // file pointer to read csv file
-fstream     idx;                      // file pointer for EmployeeIndex file
-fstream     data;                     // file pointer for EmployeeData file
+fstream     b_array;                  // file pointer to bucket_array
+fstream     data;                     // file pointer for EmployeeIndex file
 
 int            read_line();                      // read a line from the csv file and put data in to the Emp struct
 int            hash_id( char *id );              // hash the id and return the key
@@ -65,8 +65,8 @@ void           init_index();                     // init hash index
 void           init_data();                      // init block
 int            write_cur_record( int pos );      // write the current emp_buffer to a block, pos is the entry of the block
 void           print_record( int pos );          // print the record on pos location
-int            add_to_LHI( int key );            // add the key to LHI, return entry to block
-void           free_index();                     // free the memory of LHI
+int            add_to_BucketArray( int key );            // add the key to BucketArray, return entry to block
+void           free_index();                     // free the memory of BucketArray
 struct Record* find_record_offset_by_id();       // find record offset by id
 
 int main(int argc, char **argv)
@@ -96,7 +96,7 @@ int main(int argc, char **argv)
     while ( read_line() )
     {
       int key = hash_id(emp_buffer.id);
-      int block_entry = add_to_LHI( key );
+      int block_entry = add_to_BucketArray( key );
       int offset = write_cur_record(block_entry);
       struct Record *cur_rec = find_record_offset_by_id(emp_buffer.id);
       cur_rec->id = emp_buffer.id;
@@ -160,22 +160,22 @@ int hash_id( char *id )
 
 void init_index ()
 {
-  linear_hash.i = 1;
-  linear_hash.N = 0;
+  bucket_array.i = 1;
+  bucket_array.N = 0;
 }
 
 void init_data ()
 {
-  data.open("EmployeeData", ios::out | ios::binary);
+  data.open("EmployeeIndex", ios::out | ios::binary);
 
   if ( !data.is_open() )
   {
-    cout << "Failed to create EmployeeData file" << endl;
+    cout << "Failed to create EmployeeIndex file" << endl;
     exit(1);
   }
 
   struct Block new_block;
-  new_block.capacity = 4;
+  new_block.capacity = 5;
   new_block.used = 0;
   new_block.usage = 0;
   new_block.overflow = 0;
@@ -197,21 +197,21 @@ void init_data ()
 */
 int write_cur_record ( int pos )
 {
-  data.open("EmployeeData", ios::in | ios::out | ios::binary);
+  data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
 
   if ( !data.is_open() )
   {
-    cout << "Failed to open EmployeeData file" << endl;
+    cout << "Failed to open EmployeeIndex file" << endl;
     exit(1);
   }
 
   int file_size;
   struct stat results;
-  if (stat("EmployeeData", &results) == 0)
+  if (stat("EmployeeIndex", &results) == 0)
     file_size = results.st_size;
   else
   {
-    cout << "Can not read EmployeeData stat" << endl;
+    cout << "Can not read EmployeeIndex stat" << endl;
     exit(1);
   }
 
@@ -258,21 +258,21 @@ int write_cur_record ( int pos )
 
 void print_record( int pos )
 {
-  data.open("EmployeeData", ios::in | ios::binary);
+  data.open("EmployeeIndex", ios::in | ios::binary);
 
   if ( !data.is_open() )
   {
-    cout << "Failed to open EmployeeData file" << endl;
+    cout << "Failed to open EmployeeIndex file" << endl;
     exit(1);
   }
 
   int file_size;
   struct stat results;
-  if (stat("EmployeeData", &results) == 0)
+  if (stat("EmployeeIndex", &results) == 0)
     file_size = results.st_size;
   else
   {
-    cout << "Can not read EmployeeData stat" << endl;
+    cout << "Can not read EmployeeIndex stat" << endl;
     exit(1);
   }
 
@@ -309,7 +309,7 @@ void print_record( int pos )
   data.close();
 }
 
-int add_to_LHI( int key )
+int add_to_BucketArray( int key )
 {
   return 0;
 }
