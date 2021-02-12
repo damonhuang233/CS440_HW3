@@ -26,12 +26,33 @@ struct Block
   char data[4080];
 };
 
+struct Record
+{
+  int key;
+  int offset;
+};
+
+struct Records
+{
+  int num;
+  struct Record  *Records[4];
+  struct Records *overflow;
+};
+
+struct LHI
+{
+  int i;
+  int N;
+  struct Records *Records[HASH_SIZE];
+};
+
 int         mode            = 0;                     // 0 for Index creation mode / 1 for Look up mode
 int         metaSize        = 16;                    // number of bytes for the meta data of a block
 int         max_record_len  = sizeof(struct Emp);    // the max length of an record
 
 struct Emp  emp_buffer;               // Emp buffer for reading file
 string      line_buffer;              // line buffer for reading a single line from file
+struct LHI  linear_hash;              // linear hash index
 
 fstream     csv;                      // file pointer to read csv file
 fstream     idx;                      // file pointer for EmployeeIndex file
@@ -42,6 +63,7 @@ int         hash_id( char *id );              // hash the id and return the key
 void        init_index();                     // init hash index
 void        init_data();                      // init block
 int         write_cur_record( int pos );      // write the current emp_buffer to a block, pos is the entry of the block
+void        print_record( int pos );          // print the record on pos location
 
 int main(int argc, char **argv)
 {
@@ -72,6 +94,8 @@ int main(int argc, char **argv)
     }
 
     int offset = write_cur_record(0);
+
+    print_record(offset);
 
     csv.close();
   }
@@ -202,6 +226,12 @@ int write_cur_record ( int pos )
   data.seekp(pos + sizeof(int));                    // go to the used
   data.write((char *)&used, sizeof(int));           // update used
 
+  if ( used >= capacity )
+  {
+    cout << "No more space on block" << endl;
+    exit(1);
+  }
+
   int i;                                            // look for vaild slot
   for ( i = 0; i < capacity; i++ )
     if ( !(usage >> i & 1) )
@@ -216,4 +246,57 @@ int write_cur_record ( int pos )
 
   data.close();
   return write_pos;
+}
+
+void print_record( int pos )
+{
+  data.open("EmployeeData", ios::in | ios::binary);
+
+  if ( !data.is_open() )
+  {
+    cout << "Failed to open EmployeeData file" << endl;
+    exit(1);
+  }
+
+  int file_size;
+  struct stat results;
+  if (stat("EmployeeData", &results) == 0)
+    file_size = results.st_size;
+  else
+  {
+    cout << "Can not read EmployeeData stat" << endl;
+    exit(1);
+  }
+
+  if ( pos > file_size )
+  {
+    cout << "Offset is not valid" << endl;
+    exit(1);
+  }
+
+  struct Emp temp;
+  char  ids[9];
+  ids[8] = '\0';
+
+  data.seekg( pos );
+
+  data.read((char *)&temp, sizeof(struct Emp));
+
+  for ( int i = 0; i < 8; i++ )
+    ids[i] = temp.id[i];
+
+  cout << "-----------------------------------------------------" << endl;
+  cout << "id: " << ids << endl << endl;
+
+  cout << "name: " << temp.name << endl << endl;
+
+  cout << "bio: " << temp.bio << endl << endl;
+
+  for ( int i = 0; i < 8; i++ )
+    ids[i] = temp.manager_id[i];
+
+  cout << "manager_id: " << ids << endl;
+  cout << "-----------------------------------------------------" << endl;
+
+  data.close();
 }
