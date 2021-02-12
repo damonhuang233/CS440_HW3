@@ -44,9 +44,9 @@ int         write_cur_record( int pos );      // write
 int main(int argc, char **argv)
 {
 
-  if ( argc != 2 || (strcmp(argv[1], "C") != 0 && strcmp(argv[1], "L")) )
+  if ( argc != 2 || (strcmp(argv[1], "-C") != 0 && strcmp(argv[1], "-L")) )
   {
-    cout << "Usage: main.out [C/L]     C: Index creation mode / L: Lookup mode" << endl;
+    cout << "Usage: main.out [-C/-L]     C: Index creation mode / L: Lookup mode" << endl;
     exit(0);
   }
 
