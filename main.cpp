@@ -51,9 +51,9 @@ int         mode            = 0;                     // 0 for Index creation mod
 int         metaSize        = 16;                    // number of bytes for the meta data of a block
 int         max_record_len  = sizeof(struct Emp);    // the max length of an record
 
-struct Emp  emp_buffer;               // Emp buffer for reading file
-string      line_buffer;              // line buffer for reading a single line from file
-struct BucketArray  bucket_array;              // linear hash index
+struct Emp          emp_buffer;               // Emp buffer for reading file
+string              line_buffer;              // line buffer for reading a single line from file
+struct BucketArray  bucket_array;             // linear hash index
 
 fstream     csv;                      // file pointer to read csv file
 fstream     b_array;                  // file pointer to bucket_array
@@ -65,9 +65,9 @@ void           init_index();                     // init hash index
 void           init_data();                      // init block
 int            write_cur_record( int pos );      // write the current emp_buffer to a block, pos is the entry of the block
 void           print_record( int pos );          // print the record on pos location
-int            add_to_BucketArray( int key );            // add the key to BucketArray, return entry to block
+int            add_to_BucketArray( int key );    // add the key to BucketArray, return entry to block
 void           free_index();                     // free the memory of BucketArray
-struct Record* find_record_offset_by_id();       // find record offset by id
+struct Record* find_record_pointer_by_id();      // find record offset by id
 
 int main(int argc, char **argv)
 {
@@ -95,11 +95,9 @@ int main(int argc, char **argv)
 
     while ( read_line() )
     {
-      int key = hash_id(emp_buffer.id);
-      int block_entry = add_to_BucketArray( key );
+      int block_entry = add_to_BucketArray( emp_buffer.id );
       int offset = write_cur_record(block_entry);
-      struct Record *cur_rec = find_record_offset_by_id(emp_buffer.id);
-      cur_rec->id = emp_buffer.id;
+      struct Record *cur_rec = find_record_point_by_id(emp_buffer.id);
       cur_rec->offset = offset;
       break;
     }
@@ -319,7 +317,7 @@ void free_index()
 
 }
 
-struct Record *find_record_offset_by_id( int id )
+struct Record *find_record_pointer_by_id( int id )
 {
   return NULL;
 }
