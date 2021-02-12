@@ -16,7 +16,17 @@ struct Emp
   char manager_id[8];
 };
 
-int         mode = 0;                 // 0 for Index creation mode / 1 for Look up mode
+struct Block
+{
+  int capacity;
+  int used;
+  int usage;
+  int overflow;
+  char data[4080];
+};
+
+int         mode        = 0;          // 0 for Index creation mode / 1 for Look up mode
+int         metaSize    = 16;         // number of bytes for the meta data of a block
 
 struct Emp  buffer;                   // Emp buffer for reading file
 string      linebuffer;               // line buffer for reading a single line from file
@@ -25,9 +35,11 @@ fstream     csv;                      // file pointer to read csv file
 fstream     idx;                      // file pointer for EmployeeIndex file
 fstream     data;                     // file pointer for EmployeeData file
 
-int         read_line();              // read a line from the csv file and put data in to the Emp struct
-int         hash_id( char *id );      // hash the id and return the key
-void        init();                   // init hash index and block
+int         read_line();                      // read a line from the csv file and put data in to the Emp struct
+int         hash_id( char *id );              // hash the id and return the key
+void        init_index();                     // init hash index
+void        init_data();                      // init block
+int         write_cur_record( int pos );      // write
 
 int main(int argc, char **argv)
 {
@@ -50,7 +62,7 @@ int main(int argc, char **argv)
       exit(1);
     }
 
-    init();
+    init_data();
 
     while ( read_line() )
     {
@@ -68,15 +80,15 @@ int read_line()
   {
     int i = 0;
     int c = 0;
-    for ( i = 0; i < 8; i++ )                     // read id
+    for ( i = 0; i < 8; i++ )                      // read id
     {
       buffer.id[i] = linebuffer[c];
       c++;
     }
 
-    c++;                                          //  skip ,
+    c++;                                           //  skip ,
 
-    for ( i = 0; linebuffer[c] != ','; i++)       //  read name
+    for ( i = 0; linebuffer[c] != ','; i++)        //  read name
     {
       buffer.name[i] = linebuffer[c];
       c++;
@@ -85,16 +97,16 @@ int read_line()
 
     c++;                                           //  skip ,
 
-    for ( i = 0; linebuffer[c] != ','; i++)       //  read name
+    for ( i = 0; linebuffer[c] != ','; i++)        //  read name
     {
       buffer.bio[i] = linebuffer[c];
       c++;
     }
-    buffer.bio[i] = '\0';                         //  end of bio
+    buffer.bio[i] = '\0';                          //  end of bio
 
     c++;                                           //  skip ,
 
-    for ( i = 0; i < 8; i++ )                     // read manager_id
+    for ( i = 0; i < 8; i++ )                      // read manager_id
     {
       buffer.manager_id[i] = linebuffer[c];
       c++;
@@ -110,7 +122,45 @@ int hash_id( char *id )
   return atoi(id) % HASH_SIZE;
 }
 
-void init ()
+void init_index ()
 {
+  // In progress.........
+}
 
+void init_data ()
+{
+  data.open("EmployeeData", ios::out | ios::binary);
+
+  if ( !data.is_open() )
+  {
+    cout << "Failed to create EmployeeData file" << endl;
+    exit(1);
+  }
+
+  struct Block new_block;
+  new_block.capacity = 4;
+  new_block.used = 4;
+  new_block.usage = 0;
+  new_block.overflow = 0;
+
+  data.write((char *) &new_block, sizeof(struct Block));
+
+  data.close();
+}
+
+int write_cur_record ( int pos )
+{
+  data.open("EmployeeData", ios::out | ios::binary);
+
+  if ( !data.is_open() )
+  {
+    cout << "Failed to open EmployeeData file" << endl;
+    exit(1);
+  }
+
+  // In progress.........
+  // ref https://courses.cs.vt.edu/cs2604/fall02/binio.html
+
+  data.close();
+  return 0;
 }
