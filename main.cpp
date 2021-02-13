@@ -41,6 +41,7 @@ int         metaSize        = 16;                    // number of bytes for the 
 int         max_record_len  = sizeof(struct Emp);    // the max length of an record
 
 struct Emp          emp_buffer;               // Emp buffer for reading file
+struct Emp          temp_buffer;              // Emp temp buffer for moving record on split
 string              line_buffer;              // line buffer for reading a single line from file
 struct BucketArray  bucket_array;             // linear hash index
 
@@ -48,15 +49,16 @@ fstream     csv;                      // file pointer to read csv file
 fstream     b_array;                  // file pointer to bucket_array
 fstream     data;                     // file pointer for EmployeeIndex file
 
-int            read_line();                      // read a line from the csv file and put data in to the Emp struct
-int            hash_id( char *id );              // hash the id and return the key
-void           init_index();                     // init hash index
-void           init_data();                      // init block
-void           write_cur_record( int pos );      // write the current emp_buffer to a block, pos is the entry of the block
-void           print_record( int pos );          // print the record on pos location
-int            add_to_BucketArray( char *id );   // add the key to BucketArray, return entry to block
-void           free_index();                     // free the memory of BucketArray
-int            need_to_split();                  // return 1 if need to split, 0 otherwise
+int            read_line();                                // read a line from the csv file and put data in to the Emp struct
+int            hash_id( char *id );                        // hash the id and return the key
+void           init_index();                               // init hash index
+void           init_data();                                // init block
+void           write_cur_record( int pos, int flag  );     // write the current emp_buffer to a block, pos is the entry of the block
+void           print_record( int pos );                    // print the record on pos location
+int            add_to_BucketArray( char *id );             // add the key to BucketArray, return entry to block
+int            need_to_split();                            // return 1 if need to split, 0 otherwise
+void           split();                                    // split and add one block
+void           check_block(int entry, int i, int of);      // check each record in a overflow block and put them in right place
 
 int main(int argc, char **argv)
 {
@@ -84,8 +86,12 @@ int main(int argc, char **argv)
 
     while ( read_line() )
     {
+      if (need_to_split() == 1)
+      {
+        split();
+      }
       int block_entry = add_to_BucketArray( emp_buffer.id );
-      write_cur_record(block_entry);
+      write_cur_record(block_entry, 0);
 
     }
 
@@ -185,7 +191,7 @@ void init_data ()
 
   ref https://courses.cs.vt.edu/cs2604/fall02/binio.html
 */
-void write_cur_record ( int pos )
+void write_cur_record ( int pos, int flag )
 {
   data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
 
@@ -224,7 +230,10 @@ void write_cur_record ( int pos )
 
   int write_pos = pos + metaSize + max_record_len * i;
   data.seekp(write_pos);                            // go to the next empty slot
-  data.write((char *)&emp_buffer, max_record_len);
+  if (flag == 1)
+    data.write((char *)&temp_buffer, max_record_len);
+  else
+    data.write((char *)&emp_buffer, max_record_len);
 
   data.close();
 }
@@ -303,10 +312,100 @@ int need_to_split()
   float average = (float)total_used / (float)total_capacity;
 
   if (average > 0.8)
-    return 1
+    return 1;
 
   return 0;
 }
+
+void check_block( int entry, int i, int of )
+{
+  int block_usage;
+
+  data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
+  data.seekg( 4096* entry + 4 + 4 );
+  data.read((char *)&block_usage, 4);
+
+  for (int j = 0; j < 5; j++)
+  {
+    if ((block_usage >> j) & 1)
+    {
+      char rec_id[8];
+      data.seekg(4096* entry + metaSize + j * sizeof(struct Emp));
+      data.read((char *)&rec_id, 8);
+      int rec_key = hash_id(rec_id);
+
+      int idx = 0;
+      for (int k = 0; k < bucket_array.i; k++)
+        if ( (rec_key >> k) & 1 )
+          idx |= (1u << k);
+
+      if (idx == i)
+        continue;
+      else
+      {
+        if (!of)
+          bucket_array.buckets[i] -= 1;
+        block_usage &= ~(1 << j);
+        int block_used;
+        data.seekg( 4096 * entry + 4);
+        data.read((char *)&block_used, 4);
+        block_used -= 1;
+        data.seekp( 4096 * entry + 4);
+        data.write((char *)&block_used, 4);
+
+        data.seekg(4096* entry + metaSize + j * sizeof(struct Emp));
+        data.read((char *)&temp_buffer, sizeof(struct Emp));
+
+        int block_entry = add_to_BucketArray( temp_buffer.id );
+        write_cur_record(block_entry, 1);
+      }
+    }
+  }
+  data.close();
+}
+
+void split()
+{
+  struct Block new_block;
+  new_block.capacity = 5;
+  new_block.used = 0;
+  new_block.usage = 0;
+  new_block.overflow = 0;
+
+  data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
+  data.write((char *)&new_block, total_block * sizeof(struct Block));
+
+  bucket_array.buckets_offsets[bucket_array.N] = total_block;
+  bucket_array.N += 1;
+  total_block += 1;
+
+  int max_N = 1;
+  for (int i = 0; i < bucket_array.i; i++)
+    max_N *= 2;
+
+  if (bucket_array.N > max_N)
+    bucket_array.i += 1;
+
+  for (int i = 0; i < bucket_array.N; i++)
+  {
+    int entry = bucket_array.buckets_offsets[i];
+    check_block(entry, i, 0);
+    int block_s = bucket_array.buckets[i];
+
+    int overflow_entry = entry;
+    while (block_s == 5)
+    {
+      data.seekg( 4096* overflow_entry + 4 + 4 + 4);
+      data.read((char *)&overflow_entry, 4);
+      check_block(overflow_entry, i, 1);
+      data.seekg( 4096* overflow_entry + 4);
+      data.read((char *)&block_s, 4);
+    }
+  }
+  data.close();
+}
+
+
 
 int add_to_BucketArray( char *id )
 {
@@ -327,14 +426,7 @@ int add_to_BucketArray( char *id )
     }
     else
     {
-      if (need_to_split() == 1)
-      {
-        // split
-      }
-      else
-      {
-        // overflow
-      }
+      // overflow
     }
   }
   else
@@ -343,9 +435,4 @@ int add_to_BucketArray( char *id )
   }
 
   return 0;
-}
-
-void free_index()
-{
-
 }
