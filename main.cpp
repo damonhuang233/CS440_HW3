@@ -59,6 +59,8 @@ int            add_to_BucketArray( char *id );             // add the key to Buc
 int            need_to_split();                            // return 1 if need to split, 0 otherwise
 void           split();                                    // split and add one block
 void           check_block(int entry, int i, int of);      // check each record in a overflow block and put them in right place
+void           print_blocks();
+void           print_bucket();
 
 int main(int argc, char **argv)
 {
@@ -84,18 +86,31 @@ int main(int argc, char **argv)
     init_data();
     init_index();
 
+    int count = 0;
+
     while ( read_line() )
     {
+      cout << count << endl;
+      count++;
+
       if (need_to_split() == 1)
       {
         split();
       }
       int block_entry = add_to_BucketArray( emp_buffer.id );
       write_cur_record(block_entry, 0);
+
+      cout << "Added key: " << hash_id(emp_buffer.id) <<endl;
+      cout << "Adding to the " << block_entry / 4096 << "th block" << endl;
+      cout << "total_block: " << total_block << endl;
+      print_bucket();
+      print_blocks();
+      cout << endl << endl << endl;
+      if (count == 6)
+        break;
     }
     csv.close();
 
-    cout << total_block << endl;
   }
 
   return 0;
@@ -160,6 +175,7 @@ void init_index ()
 
 void init_data ()
 {
+  data.close();
   data.open("EmployeeIndex", ios::out | ios::binary);
 
   if ( !data.is_open() )
@@ -193,6 +209,7 @@ void init_data ()
 */
 void write_cur_record ( int pos, int flag )
 {
+  data.close();
   data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
 
   if ( !data.is_open() )
@@ -210,11 +227,13 @@ void write_cur_record ( int pos, int flag )
   int capacity;
   int used;
   int usage;
+  int overflow;
 
   data.seekg(pos);                                  // go to the meta-data
   data.read((char *)&capacity, sizeof(int));
   data.read((char *)&used, sizeof(int));
   data.read((char *)&usage, sizeof(int));
+  data.read((char *)&overflow, sizeof(int));
 
   used++;
   data.seekp(pos + sizeof(int));                    // go to the used
@@ -229,6 +248,7 @@ void write_cur_record ( int pos, int flag )
   data.write((char *)&usage, sizeof(int));
 
   int write_pos = pos + metaSize + max_record_len * i;
+  cout << "Writing record at: " << write_pos << endl;
   data.seekp(write_pos);                            // go to the next empty slot
   if (flag == 1)
     data.write((char *)&temp_buffer, max_record_len);
@@ -240,7 +260,8 @@ void write_cur_record ( int pos, int flag )
 
 void print_record( int pos )
 {
-  data.open("EmployeeIndex", ios::in | ios::binary);
+  data.close();
+  data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
 
   if ( !data.is_open() )
   {
@@ -269,7 +290,7 @@ void print_record( int pos )
   ids[8] = '\0';
 
   data.seekg( pos );
-
+  cout << "Record at: " << pos <<endl;
   data.read((char *)&temp, sizeof(struct Emp));
 
   for ( int i = 0; i < 8; i++ )
@@ -296,6 +317,7 @@ int need_to_split()
   int total_used = 0;
   int total_capacity = 0;
 
+  data.close();
   data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
 
   for (int i = 0; i < total_block; i++)
@@ -310,8 +332,8 @@ int need_to_split()
   }
 
   float average = (float)total_used / (float)total_capacity;
-
-  if (average > 0.8)
+  cout << "Average usage: " << average << endl;
+  if (average > 0.8001)
     return 1;
 
   return 0;
@@ -321,6 +343,7 @@ void check_block( int entry, int i, int of )
 {
   int block_usage;
 
+  data.close();
   data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
   data.seekg( 4096* entry + 4 + 4 );
   data.read((char *)&block_usage, 4);
@@ -366,12 +389,14 @@ void check_block( int entry, int i, int of )
 
 void split()
 {
+  cout << "Need to split" << endl;
   struct Block new_block;
   new_block.capacity = 5;
   new_block.used = 0;
   new_block.usage = 0;
   new_block.overflow = 0;
 
+  data.close();
   data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
   data.seekp(total_block * sizeof(struct Block));
   data.write((char *)&new_block, sizeof(struct Block));
@@ -379,6 +404,10 @@ void split()
   bucket_array.buckets_offsets[bucket_array.N] = total_block;
   bucket_array.N += 1;
   total_block += 1;
+
+  cout << "After add new block: " << endl;
+  print_bucket();
+  print_blocks();
 
   int max_N = 1;
   for (int i = 0; i < bucket_array.i; i++)
@@ -408,8 +437,6 @@ void split()
 
 int add_to_BucketArray( char *id )
 {
-  int block_num = 0;
-
   int key = hash_id(id);
 
   int idx = 0;
@@ -417,15 +444,19 @@ int add_to_BucketArray( char *id )
     if ( (key >> i) & 1 )
       idx |= (1u << i);
 
+  cout << "idx: " << idx << endl;
+
   if (idx < bucket_array.N)
   {
     if (bucket_array.buckets[idx] < 5)
     {
+      bucket_array.buckets[idx] += 1;
       return bucket_array.buckets_offsets[idx] * 4096;
     }
     else
     {
       int overflow_entry;
+      data.close();
       data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
       data.seekg(idx * 4096 + 12);
       data.read((char *)&overflow_entry, 4);
@@ -448,6 +479,8 @@ int add_to_BucketArray( char *id )
 
           data.seekp(idx * 4096 + 12);
           data.write((char *)&overflow, 4);
+          data.close();
+          cout << "Add to new overflow block: " << overflow << endl;
           return overflow * 4096;
         }
         else
@@ -460,7 +493,11 @@ int add_to_BucketArray( char *id )
           data.read((char *)&overflow_entry, 4);
 
           if (block_used < 5)
+          {
+            cout << "Add to overflow block: " << overflow_entry << endl;
+            data.close();
             return overflow_entry * 4096;
+          }
         }
       }
     }
@@ -468,8 +505,57 @@ int add_to_BucketArray( char *id )
   else
   {
     idx ^= 1u << (bucket_array.i - 1);
+    bucket_array.buckets[idx] += 1;
+    data.close();
+    cout << "bit flip, add to bucket: " << idx << endl;
     return bucket_array.buckets_offsets[idx] * 4096;
   }
+}
 
-  return 0;
+void print_blocks()
+{
+  data.close();
+  data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
+
+  for( int i = 0; i < total_block; i++)
+  {
+    cout << "Block " << i <<endl;
+    int block_capacity;
+    int block_used;
+    int block_usage;
+    int overflow;
+    data.seekg(i * 4096);
+    data.read((char *)&block_capacity, 4);
+    data.read((char *)&block_used, 4);
+    data.read((char *)&block_usage, 4);
+    data.read((char *)&overflow, 4);
+    cout << "Capacity: " << block_capacity << endl;
+    cout << "Used: " << block_used << endl;
+    cout << "Usage: " << block_usage << endl;
+    cout << "Overflow: " << overflow << endl <<endl;
+    cout << "Block data:" << endl;
+    for (int j = 0; j < 5; j++)
+    {
+      if ( (block_usage >> j) & 1 )
+      {
+        int where = i*4096 + metaSize + j * sizeof(struct Emp);
+        print_record( where );
+      }
+    }
+  }
+  cout << endl;
+  data.close();
+}
+
+void print_bucket()
+{
+  cout << "Bucket: " << endl;
+  cout << "i: " << bucket_array.i << endl;
+  cout << "N: " << bucket_array.N << endl;
+  for (int i = 0; i < bucket_array.N; i++)
+  {
+    cout << "Bucket " << i << " size: " << bucket_array.buckets[i] << endl;
+    cout << "Bucket " << i << " pointer: " << bucket_array.buckets_offsets[i] << endl;
+  }
+  cout << endl;
 }
