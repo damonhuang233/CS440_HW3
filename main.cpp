@@ -26,27 +26,16 @@ struct Block
   char data[4080];
 };
 
-struct Record
-{
-  int id;
-  int key;
-  int offset;
-};
-
-struct Records
-{
-  int num;
-  struct Record  *Records[5];
-  struct Records *overflow;
-};
 
 struct BucketArray
 {
   int i;
   int N;
-  struct Records *Records[HASH_SIZE];
+  int buckets[HASH_SIZE];
+  int buckets_offsets[HASH_SIZE];
 };
 
+int         total_block     = 0;
 int         mode            = 0;                     // 0 for Index creation mode / 1 for Look up mode
 int         metaSize        = 16;                    // number of bytes for the meta data of a block
 int         max_record_len  = sizeof(struct Emp);    // the max length of an record
@@ -63,11 +52,11 @@ int            read_line();                      // read a line from the csv fil
 int            hash_id( char *id );              // hash the id and return the key
 void           init_index();                     // init hash index
 void           init_data();                      // init block
-int            write_cur_record( int pos );      // write the current emp_buffer to a block, pos is the entry of the block
+void           write_cur_record( int pos );      // write the current emp_buffer to a block, pos is the entry of the block
 void           print_record( int pos );          // print the record on pos location
 int            add_to_BucketArray( char *id );   // add the key to BucketArray, return entry to block
 void           free_index();                     // free the memory of BucketArray
-struct Record* find_record_pointer_by_id( char *id );      // find record offset by id
+int            need_to_split();                  // return 1 if need to split, 0 otherwise
 
 int main(int argc, char **argv)
 {
@@ -96,10 +85,8 @@ int main(int argc, char **argv)
     while ( read_line() )
     {
       int block_entry = add_to_BucketArray( emp_buffer.id );
-      int offset = write_cur_record(block_entry);
-      struct Record *cur_rec = find_record_pointer_by_id(emp_buffer.id);
-      cur_rec->offset = offset;
-      break;
+      write_cur_record(block_entry);
+
     }
 
     csv.close();
@@ -159,7 +146,10 @@ int hash_id( char *id )
 void init_index ()
 {
   bucket_array.i = 1;
-  bucket_array.N = 0;
+  bucket_array.N = 1;
+  for (int i = 0; i < HASH_SIZE; i++)
+    bucket_array.buckets[i] = 0;
+  bucket_array.buckets_offsets[0] = 0;
 }
 
 void init_data ()
@@ -181,6 +171,8 @@ void init_data ()
   data.write((char *) &new_block, sizeof(struct Block));
 
   data.close();
+
+  total_block = 1;
 }
 
 /*
@@ -193,7 +185,7 @@ void init_data ()
 
   ref https://courses.cs.vt.edu/cs2604/fall02/binio.html
 */
-int write_cur_record ( int pos )
+void write_cur_record ( int pos )
 {
   data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
 
@@ -203,17 +195,7 @@ int write_cur_record ( int pos )
     exit(1);
   }
 
-  int file_size;
-  struct stat results;
-  if (stat("EmployeeIndex", &results) == 0)
-    file_size = results.st_size;
-  else
-  {
-    cout << "Can not read EmployeeIndex stat" << endl;
-    exit(1);
-  }
-
-  if ( pos % 4096 != 0 || pos > file_size - 4096 )
+  if ( pos % 4096 != 0 || pos > 4096 * total_block )
   {
     cout << "Offset is not at the entry of a block" << endl;
     exit(1);
@@ -232,12 +214,6 @@ int write_cur_record ( int pos )
   data.seekp(pos + sizeof(int));                    // go to the used
   data.write((char *)&used, sizeof(int));           // update used
 
-  if ( used >= capacity )
-  {
-    cout << "No more space on block" << endl;
-    exit(1);
-  }
-
   int i;                                            // look for vaild slot
   for ( i = 0; i < capacity; i++ )
     if ( !(usage >> i & 1) )
@@ -251,7 +227,6 @@ int write_cur_record ( int pos )
   data.write((char *)&emp_buffer, max_record_len);
 
   data.close();
-  return write_pos;
 }
 
 void print_record( int pos )
@@ -307,8 +282,65 @@ void print_record( int pos )
   data.close();
 }
 
+int need_to_split()
+{
+  int total_used = 0;
+  int total_capacity = 0;
+
+  data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
+
+  for (int i = 0; i < total_block; i++)
+  {
+    int cur_block_capa;
+    int cur_block_use;
+    data.seekg( i * 4096);
+    data.read((char *)&cur_block_capa, 4);
+    data.read((char *)&cur_block_use, 4);
+    total_capacity += cur_block_capa;
+    total_used += cur_block_use;
+  }
+
+  float average = (float)total_used / (float)total_capacity;
+
+  if (average > 0.8)
+    return 1
+
+  return 0;
+}
+
 int add_to_BucketArray( char *id )
 {
+  int block_num = 0;
+
+  int key = hash_id(id);
+
+  int idx = 0;
+  for (int i = 0; i < bucket_array.i; i++)
+    if ( (key >> i) & 1 )
+      idx |= (1u << i);
+
+  if (idx < bucket_array.N)
+  {
+    if (bucket_array.buckets[idx] < 5)
+    {
+      return bucket_array.buckets_offsets[idx] * 4096;
+    }
+    else
+    {
+      if (need_to_split() == 1)
+      {
+        // split
+      }
+      else
+      {
+        // overflow
+      }
+    }
+  }
+  else
+  {
+    // bit flip
+  }
 
   return 0;
 }
@@ -316,9 +348,4 @@ int add_to_BucketArray( char *id )
 void free_index()
 {
 
-}
-
-struct Record *find_record_pointer_by_id( char *id )
-{
-  return NULL;
 }
