@@ -382,7 +382,7 @@ int need_to_split()
     total_used += cur_block_use;
   }
 
-  float average = (float)total_used / (float)total_capacity;
+  float average = (float)total_used / (float)(bucket_array.N * 5);
   //cout << "Average usage: " << total_used << " / " << total_capacity << " = " << average << endl;
   if (average > 0.8001)
     return 1;
