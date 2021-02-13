@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-#define HASH_SIZE 100;
+#define HASH_SIZE 100
 
 using namespace std;
 
@@ -65,9 +65,9 @@ void           init_index();                     // init hash index
 void           init_data();                      // init block
 int            write_cur_record( int pos );      // write the current emp_buffer to a block, pos is the entry of the block
 void           print_record( int pos );          // print the record on pos location
-int            add_to_BucketArray( int key );    // add the key to BucketArray, return entry to block
+int            add_to_BucketArray( char *id );   // add the key to BucketArray, return entry to block
 void           free_index();                     // free the memory of BucketArray
-struct Record* find_record_pointer_by_id();      // find record offset by id
+struct Record* find_record_pointer_by_id( char *id );      // find record offset by id
 
 int main(int argc, char **argv)
 {
@@ -97,7 +97,7 @@ int main(int argc, char **argv)
     {
       int block_entry = add_to_BucketArray( emp_buffer.id );
       int offset = write_cur_record(block_entry);
-      struct Record *cur_rec = find_record_point_by_id(emp_buffer.id);
+      struct Record *cur_rec = find_record_pointer_by_id(emp_buffer.id);
       cur_rec->offset = offset;
       break;
     }
@@ -307,8 +307,9 @@ void print_record( int pos )
   data.close();
 }
 
-int add_to_BucketArray( int key )
+int add_to_BucketArray( char *id )
 {
+
   return 0;
 }
 
@@ -317,7 +318,7 @@ void free_index()
 
 }
 
-struct Record *find_record_pointer_by_id( int id )
+struct Record *find_record_pointer_by_id( char *id )
 {
   return NULL;
 }
