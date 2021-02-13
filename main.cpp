@@ -92,10 +92,10 @@ int main(int argc, char **argv)
       }
       int block_entry = add_to_BucketArray( emp_buffer.id );
       write_cur_record(block_entry, 0);
-
     }
-
     csv.close();
+
+    cout << total_block << endl;
   }
 
   return 0;
@@ -373,7 +373,8 @@ void split()
   new_block.overflow = 0;
 
   data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
-  data.write((char *)&new_block, total_block * sizeof(struct Block));
+  data.seekp(total_block * sizeof(struct Block));
+  data.write((char *)&new_block, sizeof(struct Block));
 
   bucket_array.buckets_offsets[bucket_array.N] = total_block;
   bucket_array.N += 1;
@@ -405,8 +406,6 @@ void split()
   data.close();
 }
 
-
-
 int add_to_BucketArray( char *id )
 {
   int block_num = 0;
@@ -426,12 +425,50 @@ int add_to_BucketArray( char *id )
     }
     else
     {
-      // overflow
+      int overflow_entry;
+      data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
+      data.seekg(idx * 4096 + 12);
+      data.read((char *)&overflow_entry, 4);
+
+      while (1)
+      {
+        if (overflow_entry == 0)
+        {
+          int overflow = total_block;
+
+          struct Block new_block;
+          new_block.capacity = 5;
+          new_block.used = 0;
+          new_block.usage = 0;
+          new_block.overflow = 0;
+
+          data.seekp(total_block * sizeof(struct Block));
+          data.write((char *)&new_block, sizeof(struct Block));
+          total_block++;
+
+          data.seekp(idx * 4096 + 12);
+          data.write((char *)&overflow, 4);
+          return overflow * 4096;
+        }
+        else
+        {
+          int block_used;
+          idx = overflow_entry;
+          data.seekg(overflow_entry * sizeof(struct Block) + 4);
+          data.read((char *)&block_used, 4);
+          data.seekg(overflow_entry * sizeof(struct Block) + 12);
+          data.read((char *)&overflow_entry, 4);
+
+          if (block_used < 5)
+            return overflow_entry * 4096;
+        }
+      }
     }
   }
   else
   {
-    // bit flip
+    idx ^= 1u << (bucket_array.i - 1);
+    return bucket_array.buckets_offsets[idx] * 4096;
   }
 
   return 0;
