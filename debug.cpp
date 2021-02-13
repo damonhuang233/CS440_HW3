@@ -88,12 +88,11 @@ int main(int argc, char **argv)
     init_data();
     init_index();
 
-    int count = 0;
-
+    //int count = 0;
     while ( read_line() )
     {
       //cout << count << endl;
-      count++;
+      //count++;
 
       if (need_to_split() == 1)
       {
@@ -131,7 +130,7 @@ int main(int argc, char **argv)
 
     if (!b_array.is_open())
     {
-      cout << "Can not open BucketArray file" << endl;
+      cout << "Can not open BucketArray file, please run with -C first" << endl;
       exit(1);
     }
 
@@ -141,20 +140,25 @@ int main(int argc, char **argv)
     data.open("EmployeeIndex", ios::in);
     if (!data.is_open())
     {
-      cout << "Can not open EmployeeIndex file" << endl;
+      cout << "Can not open EmployeeIndex file, please run with -C first" << endl;
       exit(1);
     }
 
-    char lookup_id[9];
-
-    cout << "Enter the id of an record: ";
-    cin.get(lookup_id, 9);
-    cout << lookup_id << endl;
-    int res = find_record_by_id(lookup_id);
-    if (res == -1)
-      cout << "Record not found, please check id" << endl;
-    else
-      print_record(res);
+    while(1)
+    {
+      char lookup_id[9];
+      cout << "Enter the id of an record (ctrl-C to quit)" << endl;;
+      cin.get(lookup_id, 9);
+      cin.clear();
+      cin.ignore(10000, '\n');
+      cout <<  endl;
+      int res = find_record_by_id(lookup_id);
+      if (res == -1)
+        cout << "Record not found, please check id" << endl;
+      else
+        print_record(res);
+      cout << endl;
+    }
   }
 
   return 0;
@@ -338,7 +342,7 @@ void print_record( int pos )
   ids[8] = '\0';
 
   data.seekg( pos );
-  cout << "Record at: " << pos <<endl;
+  //cout << "Record at: " << pos <<endl;
   data.read((char *)&temp, sizeof(struct Emp));
 
   for ( int i = 0; i < 8; i++ )
@@ -404,16 +408,25 @@ void check_block( int entry, int i, int of )
       data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
       data.seekg(4096* entry + metaSize + j * sizeof(struct Emp));
       data.read((char *)&rec_id, 8);
+      //cout << "check_block_id: "<< rec_id << endl;
 
       int rec_key = hash_id(rec_id);
+      //cout << "check_block_hash: "<< rec_key << endl;
 
       int idx = 0;
       for (int k = 0; k < bucket_array.i; k++)
         if ( (rec_key >> k) & 1 )
           idx |= (1u << k);
 
-      if (idx >= bucket_array.N - 1)
+      //cout << "check_block_idx: "<< idx << endl;
+
+
+      if (idx >= bucket_array.N)
         idx ^= 1u << (bucket_array.i - 1);
+
+      //cout << "check_block_idx: "<< idx << endl;
+
+      //cout << "check_block: idx   i  " << idx << "  " << i <<endl;
 
       if (idx == i)
         continue;
@@ -441,7 +454,10 @@ void check_block( int entry, int i, int of )
         data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
         data.seekg(4096* entry + metaSize + j * sizeof(struct Emp));
         data.read((char *)&temp_buffer, sizeof(struct Emp));
-
+        //cout << "check_block: temp_buffer_id: ";
+        //for (int z = 0; z < 8; z++)
+        //  cout << temp_buffer.id[z];
+        //cout << endl;
         int block_entry = add_to_BucketArray( temp_buffer.id );
         write_cur_record(block_entry, 1);
       }
@@ -537,16 +553,20 @@ int add_to_BucketArray( char *id )
     }
     else
     {
+      //cout << "add_to_BucketArray: need to go to overflow block" << endl;
       int overflow_entry;
+      int cur_block = bucket_array.buckets_offsets[idx];
       data.close();
       data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
-      data.seekg(idx * 4096 + 12);
+      data.seekg(cur_block * 4096 + 12);
       data.read((char *)&overflow_entry, 4);
-
+      //cout << "add_to_BucketArray current block: " << cur_block << endl;
+      //cout << "add_to_BucketArray overflow_entry: " << overflow_entry << endl;
       while (1)
       {
         if (overflow_entry == 0)
         {
+          //cout << "add_to_BucketArray: need to add a new block to "<< bucket_array.buckets_offsets[idx] << endl;
           int overflow = total_block;
 
           struct Block new_block;
@@ -563,7 +583,7 @@ int add_to_BucketArray( char *id )
 
           data.close();
           data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
-          data.seekp(idx * 4096 + 12);
+          data.seekp(cur_block * 4096 + 12);
           data.write((char *)&overflow, 4);
           data.close();
           //cout << "Add to new overflow block: " << overflow << endl;
@@ -572,24 +592,24 @@ int add_to_BucketArray( char *id )
         else
         {
           int block_used;
-          idx = overflow_entry;
+          cur_block = overflow_entry;
           data.close();
           data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
-          data.seekg(idx * sizeof(struct Block) + 4);
+          data.seekg(cur_block * sizeof(struct Block) + 4);
           data.read((char *)&block_used, 4);
           data.close();
           data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
-          data.seekg(idx * sizeof(struct Block) + 12);
+          data.seekg(cur_block * sizeof(struct Block) + 12);
           data.read((char *)&overflow_entry, 4);
-          //cout << "go to idx: " << idx << endl;
+          //cout << "go to cur_block: " << cur_block << endl;
           //cout << "block used: " << block_used << endl;
           //cout << "overflow_entry: " << overflow_entry << endl;
 
           if (block_used < 5)
           {
-            //cout << "Add to overflow block: " << idx << endl;
+            //cout << "Add to overflow block: " << cur_block << endl;
             data.close();
-            return idx * 4096;
+            return cur_block * 4096;
           }
         }
       }
