@@ -59,8 +59,10 @@ int            add_to_BucketArray( char *id );             // add the key to Buc
 int            need_to_split();                            // return 1 if need to split, 0 otherwise
 void           split();                                    // split and add one block
 void           check_block(int entry, int i, int of);      // check each record in a overflow block and put them in right place
+int            find_record_by_id( char *id );              // find the record offset by id
 void           print_blocks();
 void           print_bucket();
+
 
 int main(int argc, char **argv)
 {
@@ -90,7 +92,7 @@ int main(int argc, char **argv)
 
     while ( read_line() )
     {
-      cout << count << endl;
+      //cout << count << endl;
       count++;
 
       if (need_to_split() == 1)
@@ -100,16 +102,64 @@ int main(int argc, char **argv)
       int block_entry = add_to_BucketArray( emp_buffer.id );
       write_cur_record(block_entry, 0);
 
-      cout << "Added key: " << hash_id(emp_buffer.id) <<endl;
-      cout << "Adding to the " << block_entry / 4096 << "th block" << endl;
-      cout << "total_block: " << total_block << endl;
-      print_bucket();
-      print_blocks();
-      cout << endl << endl << endl;
-
+      //cout << "Added key: " << hash_id(emp_buffer.id) <<endl;
+      //cout << "Adding to the " << block_entry / 4096 << "th block" << endl;
+      //cout << "total_block: " << total_block << endl;
+      //print_bucket();
+      //print_blocks();
+      //cout << endl << endl << endl;
     }
     csv.close();
 
+    b_array.open("BucketArray", ios::out | ios::binary);
+    b_array.write((char *)&bucket_array, sizeof(struct BucketArray));
+    b_array.close();
+    //print_bucket();
+    //print_blocks();
+
+    // char newone[] = "11432121";
+    // int test = find_record_by_id(newone);
+    // if (test == -1)
+    //   cout << "Record not found" << endl;
+    // else
+    //   print_record(test);
+
+  }
+  else
+  {
+    b_array.open("BucketArray", ios::in| ios::binary);
+
+    if (!b_array.is_open())
+    {
+      cout << "Can not open BucketArray file, please run with -C first" << endl;
+      exit(1);
+    }
+
+    b_array.read((char *)&bucket_array, sizeof(struct BucketArray));
+    b_array.close();
+
+    data.open("EmployeeIndex", ios::in);
+    if (!data.is_open())
+    {
+      cout << "Can not open EmployeeIndex file, please run with -C first" << endl;
+      exit(1);
+    }
+
+    // while(1)
+    // {
+      char lookup_id[9];
+      cout << "Enter the id of an record (ctrl-C to quit)" << endl;;
+      cin.get(lookup_id, 9);
+      cin.clear();
+      cin.ignore(10000, '\n');
+      cout <<  endl;
+      int res = find_record_by_id(lookup_id);
+      if (res == -1)
+        cout << "Record not found, please check id" << endl;
+      else
+        print_record(res);
+      cout << endl;
+    // }
   }
 
   return 0;
@@ -249,7 +299,7 @@ void write_cur_record ( int pos, int flag )
   data.write((char *)&usage, sizeof(int));
 
   int write_pos = pos + metaSize + max_record_len * i;
-  cout << "Writing record at: " << write_pos << endl;
+  //cout << "Writing record at: " << write_pos << endl;
   data.close();
   data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
   data.seekp(write_pos);                            // go to the next empty slot
@@ -334,7 +384,7 @@ int need_to_split()
   }
 
   float average = (float)total_used / (float)total_capacity;
-  cout << "Average usage: " << total_used << " / " << total_capacity << " = " << average << endl;
+  //cout << "Average usage: " << total_used << " / " << total_capacity << " = " << average << endl;
   if (average > 0.8001)
     return 1;
 
@@ -367,7 +417,7 @@ void check_block( int entry, int i, int of )
         if ( (rec_key >> k) & 1 )
           idx |= (1u << k);
 
-      if (idx >= bucket_array.N)
+      if (idx >= bucket_array.N - 1)
         idx ^= 1u << (bucket_array.i - 1);
 
       if (idx == i)
@@ -407,7 +457,7 @@ void check_block( int entry, int i, int of )
 
 void split()
 {
-  cout << "Need to split" << endl;
+  //cout << "Need to split" << endl;
   struct Block new_block;
   new_block.capacity = 5;
   new_block.used = 0;
@@ -423,7 +473,7 @@ void split()
   bucket_array.N += 1;
   total_block += 1;
 
-  cout << "After add new block: " << endl;
+  //cout << "After add new block: " << endl;
 
   int max_N = 1;
   for (int i = 0; i < bucket_array.i; i++)
@@ -432,16 +482,16 @@ void split()
   if (bucket_array.N > max_N)
     bucket_array.i += 1;
 
-  print_bucket();
-  print_blocks();
+  //print_bucket();
+  //print_blocks();
 
   for (int i = 0; i < bucket_array.N; i++)
   {
     int entry = bucket_array.buckets_offsets[i];
     check_block(entry, i, 0);
-    cout << "After check non overflow block " << entry << endl;
-    print_bucket();
-    print_blocks();
+    //cout << "After check non overflow block " << entry << endl;
+    //print_bucket();
+    //print_blocks();
 
     int cur_overflow;
     data.close();
@@ -452,9 +502,9 @@ void split()
     while (cur_overflow != 0)
     {
       check_block(cur_overflow, i, 1);
-      cout << "After check overflow block " << cur_overflow << endl;
-      print_bucket();
-      print_blocks();
+      //cout << "After check overflow block " << cur_overflow << endl;
+      //print_bucket();
+      //print_blocks();
 
       data.close();
       data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
@@ -474,17 +524,17 @@ int add_to_BucketArray( char *id )
     if ( (key >> i) & 1 )
       idx |= (1u << i);
 
-  cout << "_idx: " << idx << endl;
+  //cout << "_idx: " << idx << endl;
 
   if (idx >= bucket_array.N)
   {
     idx ^= 1u << (bucket_array.i - 1);
-    cout << "bit flip, idx: " << idx << endl;
+    //cout << "bit flip, idx: " << idx << endl;
   }
 
   if (idx < bucket_array.N)
   {
-    print_bucket();
+    //print_bucket();
     if (bucket_array.buckets[idx] < 5)
     {
       bucket_array.buckets[idx] += 1;
@@ -521,7 +571,7 @@ int add_to_BucketArray( char *id )
           data.seekp(idx * 4096 + 12);
           data.write((char *)&overflow, 4);
           data.close();
-          cout << "Add to new overflow block: " << overflow << endl;
+          //cout << "Add to new overflow block: " << overflow << endl;
           return overflow * 4096;
         }
         else
@@ -536,13 +586,13 @@ int add_to_BucketArray( char *id )
           data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
           data.seekg(idx * sizeof(struct Block) + 12);
           data.read((char *)&overflow_entry, 4);
-          cout << "go to idx: " << idx << endl;
-          cout << "block used: " << block_used << endl;
-          cout << "overflow_entry: " << overflow_entry << endl;
+          //cout << "go to idx: " << idx << endl;
+          //cout << "block used: " << block_used << endl;
+          //cout << "overflow_entry: " << overflow_entry << endl;
 
           if (block_used < 5)
           {
-            cout << "Add to overflow block: " << idx << endl;
+            //cout << "Add to overflow block: " << idx << endl;
             data.close();
             return idx * 4096;
           }
@@ -550,6 +600,71 @@ int add_to_BucketArray( char *id )
       }
     }
   }
+  return -1;
+}
+
+int find_record_by_id( char *id )
+{
+  int key = hash_id(id);
+  int idx = 0;
+
+  for (int i = 0; i < bucket_array.i; i++)
+    if ( (key >> i) & 1 )
+      idx |= (1u << i);
+
+  //cout << idx << endl;
+
+  if (idx >= bucket_array.N)
+  {
+    idx ^= 1u << (bucket_array.i - 1);
+  }
+  int entry = bucket_array.buckets_offsets[idx];
+
+  //cout << idx << endl;
+  //cout << entry << endl;
+
+  while(1)
+  {
+    //cout << entry << endl;
+
+    int usage;
+    data.close();
+    data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
+    data.seekg(entry * 4096 + 8);
+    data.read((char *)&usage, 4);
+
+    for (int i = 0; i < 5; i++)
+    {
+      if ((usage >> i) & 1)
+      {
+        int match = 1;
+        char cur_id[8];
+        int cur_id_offset = entry * 4096 + metaSize + i * max_record_len;
+        data.close();
+        data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
+        data.seekg(cur_id_offset);
+        data.read((char *)&cur_id, 8);
+        //cout << cur_id << endl;
+
+        for( int j = 0; j < 8; j++)
+          if (cur_id[j] != id[j])
+            match = 0;
+
+        if (match)
+        {
+          data.close();
+          return cur_id_offset;
+        }
+      }
+    }
+    data.close();
+    data.open("EmployeeIndex", ios::in | ios::out | ios::binary);
+    data.seekg(entry * 4096 + 12);
+    data.read((char *)&entry, 4);
+    if (entry == 0)
+      return -1;
+  }
+  data.close();
   return -1;
 }
 

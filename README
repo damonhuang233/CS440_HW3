@@ -1,0 +1,15 @@
+To run the index creation mode:
+make
+./main.out -C
+
+To run the lookup mode:
+make
+./main.out -L
+
+//IMPORTANT--------------------------------------------------------------------
+The index record file, EmployeeIndex and bucket array file, BucketArray
+are binary files.
+
+To generate human readable files
+make log
+//-----------------------------------------------------------------------------
